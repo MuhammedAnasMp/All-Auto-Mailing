@@ -46,7 +46,6 @@ INSTALLED_APPS = [
     'apps.dashboard',
     'django_celery_beat',
      "django_celery_results",
-     'django.contrib.staticfiles',
 ]
 
 
