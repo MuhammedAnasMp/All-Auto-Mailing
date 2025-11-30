@@ -45,15 +45,17 @@ INSTALLED_APPS = [
     'corsheaders',
     'apps.dashboard',
     'django_celery_beat',
-     "django_celery_results"
+     "django_celery_results",
+     'django.contrib.staticfiles',
 ]
 
 
 CORS_ALLOW_ALL_ORIGINS = True 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ['172.16.4.253', 'localhost', '127.0.0.1']
 MIDDLEWARE = [
      'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+     "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -91,7 +93,7 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -127,7 +129,8 @@ TIME_ZONE = 'Asia/Kuwait'
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
