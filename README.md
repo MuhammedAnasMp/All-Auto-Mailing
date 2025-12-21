@@ -60,6 +60,8 @@ Start a Celery worker for the `heavy_queue` with 5 threads.
 | `salers_report_:today`                  | `salers_report_2025-11-26`            | Today’s report          |
 | `salers_report_:yesterday`              | `salers_report_2025-11-25`            | Yesterday’s report      |
 | `monthly_report_:this_month`            | `monthly_report_2025-11`              | Current month report    |
+| `Report from :last_(10)_days`           | `Report from 11-Dec-2025`             | Last 10 Days report     |
+| `from :last_(n)_days to :today`         | `from 11-Dec-2025 to 21-Dec-2025`     | from Last n Days → today|
 | `any_report_:month_start_to_:today`     | `any_report_2025-11-01_to_2025-11-26` | Month start → today     |
 | `any_report_:month_start_to_:yesterday` | `any_report_2025-11-01_to_2025-11-25` | Month start → yesterday |
 | `sales_summary_:this_month`             | `sales_summary_2025-11`               | Current month summary   |

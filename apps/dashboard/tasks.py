@@ -233,19 +233,34 @@ def send_email_with_attachments(subject, body, recipient, cc ,attachments):
 
 
 from datetime import date, timedelta
-def resolve_filename(filename = "output_file"):
-    if filename is None:
+import re
+def resolve_filename(filename="output_file"):
+    if not filename:
         filename = "output_file"
+
     today = date.today()
     yesterday = today - timedelta(days=1)
     first_day_of_month = today.replace(day=1)
 
-    filename = filename.replace(":today", today.strftime("%Y-%m-%d"))
-    filename = filename.replace(":yesterday", yesterday.strftime("%Y-%m-%d"))
-    filename = filename.replace(":this_month", today.strftime("%Y-%m"))
-    filename = filename.replace(":month_start", first_day_of_month.strftime("%Y-%m-%d"))
-    
+    date_fmt = "%d-%b-%Y"
+
+    filename = filename.replace(":today", today.strftime(date_fmt))
+    filename = filename.replace(":yesterday", yesterday.strftime(date_fmt))
+    filename = filename.replace(":this_month", today.strftime("%b-%Y"))
+    filename = filename.replace(":month_start", first_day_of_month.strftime(date_fmt))
+
+   
+    pattern = r":last_\((\d+)\)_days"
+
+    def replace_last_days(match):
+        days = int(match.group(1))
+        target_date = today - timedelta(days=days)
+        return target_date.strftime(date_fmt)
+
+    filename = re.sub(pattern, replace_last_days, filename)
+
     return filename
+
 
 
 
