@@ -358,9 +358,9 @@ def processing_fetched_code(self, job_id):
 
 
         if debug:
-            send_email_with_attachments( f"DEVELOPMENT - {subject}", body, ['itadminkwt@grandhyper.com'], ['itadminkwt@grandhyper.com'], [output_file])
+            send_email_with_attachments( resolve_filename(f"DEVELOPMENT Mod  - {subject}"), resolve_filename(body), ['itadminkwt@grandhyper.com'], ['itadminkwt@grandhyper.com'], [output_file])
         else: 
-            send_email_with_attachments( subject, body, recipient, cc, [output_file])
+            send_email_with_attachments( resolve_filename(subject), resolve_filename(body), recipient, cc, [output_file])
 
 
     else:
@@ -380,7 +380,6 @@ def run_scheduled_export(self, job_id, queue_name):
         "message": "Task triggered",
         "job_id": job_id,
         "queue": queue_name,
-        "name" : '12344 anas',
         "process_task_id": result.id,
         "periodic_task": "export_scheduler",  # if triggered by a periodic task
         "worker": self.request.hostname,       # current worker name
