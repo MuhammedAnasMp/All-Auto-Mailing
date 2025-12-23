@@ -267,8 +267,4 @@ python manage.py dbshell
 
 ```
 
-dfgdfgfdgdfgdfg
-dfg
-dfgdfgfdg
-
 Enjoy automation!

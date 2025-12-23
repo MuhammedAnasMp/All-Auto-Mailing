@@ -100,7 +100,7 @@ def sync_export_jobs():
         schedule_type = job["SCHEDULE_TYPE"]
         queue_name = job["QUEUE_NAME"]
         cron_expr = job.get("CRON_EXPRESSION")
-        description = job.get("BODY", "")
+        description = job.get("SUBJECT", "")
         active = job.get("ACTIVE", 0)  # 1 -> enabled, 0 -> disabled
     
 
@@ -183,6 +183,7 @@ smtp_server = settings.SMTP_SERVER
 smtp_port = settings.SMTP_PORT
 smtp_username = settings.SMTP_USERNAME
 smtp_password = settings.SMTP_PASSWORD
+debug = settings.DEBUG
 def send_email_with_attachments(subject, body, recipient, cc ,attachments):
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -356,8 +357,10 @@ def processing_fetched_code(self, job_id):
             return
 
 
-
-        send_email_with_attachments( subject, body, recipient, cc, [output_file])
+        if debug:
+            send_email_with_attachments( f"DEVELOPMENT - {subject}", body, ['itadminkwt@grandhyper.com'], ['itadminkwt@grandhyper.com'], [output_file])
+        else: 
+            send_email_with_attachments( subject, body, recipient, cc, [output_file])
 
 
     else:
@@ -377,6 +380,7 @@ def run_scheduled_export(self, job_id, queue_name):
         "message": "Task triggered",
         "job_id": job_id,
         "queue": queue_name,
+        "name" : '12344 anas',
         "process_task_id": result.id,
         "periodic_task": "export_scheduler",  # if triggered by a periodic task
         "worker": self.request.hostname,       # current worker name
