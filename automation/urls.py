@@ -20,6 +20,7 @@ from django.urls import path ,include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.dashboard.urls')),
+    path('flareupload/', include('apps.flareupload.urls')),
    
     # path('api', include([
     #     path('', include('apps.api.urls')),

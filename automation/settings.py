@@ -41,8 +41,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "channels",
     'corsheaders',
     'apps.dashboard',
+    'apps.flareupload.apps.FlareuploadConfig',
     'django_celery_beat',
      "django_celery_results",
 ]
@@ -62,6 +64,16 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+             "hosts": ["redis://127.0.0.1:6379/1"],
+             "capacity": 700,  
+        },
+    },
+}
+
 ROOT_URLCONF = 'automation.urls'
 
 TEMPLATES = [
@@ -80,6 +92,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'automation.wsgi.application'
+ASGI_APPLICATION = 'automation.wsgi.application'
 
 
 # Database
@@ -153,7 +166,7 @@ SMTP_PASSWORD = os.getenv('SMTPPASSWORD')
 
 # Celery
 CELERY_BROKER_URL =os.getenv('CELERY_BROKER_URL')
-# CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -167,6 +180,7 @@ CELERY_CACHE_BACKEND = "default"
 CELERY_TASK_QUEUES = (
     Queue("fast_queue"),
     Queue("heavy_queue"),
+    Queue("heavy_queue1"),
 )
 
 CELERY_TASK_DEFAULT_QUEUE = "fast_queue"  # default
