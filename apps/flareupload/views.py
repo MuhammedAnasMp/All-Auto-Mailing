@@ -34,7 +34,7 @@ import os, uuid, json
 
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
-
+import io
 
 @api_view(['POST'])
 def verify_file(request):
@@ -60,20 +60,21 @@ def verify_file(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
-    os.makedirs(upload_dir, exist_ok=True)
+
 
     file_name = f"{uuid.uuid4()}{file_ext}"
-    file_path = os.path.join(upload_dir, file_name)
+ 
 
-    # 3️⃣ Save file
-    with open(file_path, 'wb+') as destination:
-        for chunk in uploaded_file.chunks():
-            destination.write(chunk)
+    file_bytes = uploaded_file.read()
+    cache_key = f"excel:{uuid.uuid4()}"
 
-    # 4️⃣ XLSX integrity check (REAL Excel validation)
+    cache.set(cache_key, file_bytes, timeout=60 * 60)
+
+    file_bytes = cache.get(cache_key)
+
+
     try:
-        load_workbook(filename=file_path)
+        load_workbook(filename=io.BytesIO(file_bytes), data_only=True)
     except InvalidFileException:
         return Response(
             {
@@ -110,7 +111,7 @@ def verify_file(request):
 
     # 6️⃣ Only NOW submit Celery task
     task = verify_excel_file.delay(
-        file_path,
+        cache_key,
         file_info,
         uploaded_file.name,
         12345
@@ -148,8 +149,11 @@ import uuid
 def finalize_upload(request):
     files = request.FILES.getlist('files')
     task_ids = request.POST.getlist('task_ids')
+    sectionKeys = request.POST.getlist('sectionKeys')
+    print(task_ids)
 
-    for uploaded_file, task_id in zip(files, task_ids):
+    for uploaded_file, task_id ,sectionKey in zip(files, task_ids ,sectionKeys):
+        print(sectionKey)
         # 🔹 uploaded_file is InMemoryUploadedFile
         file_bytes = uploaded_file.read()
 
@@ -158,10 +162,12 @@ def finalize_upload(request):
         # Store in Redis (RAM)
         cache.set(cache_key, file_bytes, timeout=60 * 60)
 
-        process_uploaded_file.delay(
+        tesk = process_uploaded_file.delay(
             cache_key=cache_key,
             filename=uploaded_file.name,
-            task_id=task_id
+            task_id=task_id,
+            user_id=12345,
+            sectionKey =sectionKey
         )
 
     return Response({"status": "queued"})

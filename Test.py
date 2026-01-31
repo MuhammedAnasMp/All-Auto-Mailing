@@ -25,6 +25,38 @@ notifications_count = 0
 all_sheets_list = list(all_sheets.items())
 total_sheets = len(all_sheets_list)
 for s_idx, (sheet_name, df) in enumerate(all_sheets_list):
+    # all_valid = (pd.to_numeric(df['UNIT_DN'], errors='coerce').notna() | df['UNIT_DN'].isna()).all()
+    # print(all_valid)
+
+
+    rules = {
+    'ARTICLE_CODE': 'number',
+    'FLYER_RSP': 'number',
+    'UNIT_DN': 'number',
+    'CREATED_BY': 'string',
+    'REG_RSP' : 'number'
+    }
+
+    # List to collect messages
+    messages = []
+
+    for col, rule in rules.items():
+        if rule == 'number':
+            mask = ~(pd.to_numeric(df[col], errors='coerce').notna() | df[col].isna())
+        elif rule == 'string':
+            mask = ~((df[col].apply(lambda x: isinstance(x, str)) | df[col].isna()))
+        
+        # Create readable messages
+        for idx in df[mask].index:
+            messages.append(f"Row {idx + 2}, Column '{col}' has invalid value: {df.at[idx, col]}")
+
+    # Print all messages
+    if messages:
+        print("Invalid entries found:\n")
+        for msg in messages:
+            print(msg)
+    else:
+        print("All entries are valid.")
 
     sheet_base_prg = (s_idx / total_sheets) * 100
     sheet_end_prg = ((s_idx + 1) / total_sheets) * 100
@@ -167,14 +199,4 @@ for s_idx, (sheet_name, df) in enumerate(all_sheets_list):
             
 send_message("success", "File fully validated", 98)
 send_message("apiUpdate", "Validation completed .", progress=98)
-
-if not hasErrors:
-    send_message("success", "Uploading To table", 99)
-    send_message("apiUpdate", "Uploadin to table", progress=99)
-    
-else:
-
-    send_message("success", "File fully validated.", 100)
-
-    send_message("apiUpdate", "Validation completed", progress=100)
 
