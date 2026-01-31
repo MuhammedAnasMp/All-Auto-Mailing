@@ -1,41 +1,44 @@
 import pandas as pd
 from datetime import datetime
 # Define your required columns
-REQUIRED_VALUE_COLUMNS = ["ARTICLE_CODE", "SU", "UNIQ_NAME","UNIQ_CODE","FROM_DATE", "TO_DATE", "FLYER_RSP", "FLYER_TYPE", "CREATED_BY" , "APPLICABLE_LOCATIONS"]
 REQUIRED_COLUMNS = [ "ARTICLE_CODE", "SU", "UNIQ_CODE", "UNIQ_NAME", "FROM_DATE", "TO_DATE", "FLYER_RSP", "REG_RSP", "UNIT_DN", "REMARKS", "FLYER_TYPE", "CREATED_BY", "APPLICABLE_LOCATIONS"]
-DATE_COLUMNS = ["FROM_DATE","TO_DATE"]
+DATE_COLUMNS = ["FROM_DATE", "TO_DATE"]
+REQUIRED_VALUE_COLUMNS = ["ARTICLE_CODE", "SU", "UNIQ_NAME","UNIQ_CODE", "FROM_DATE", "TO_DATE", "FLYER_RSP", "FLYER_TYPE", "CREATED_BY"]
+INVALID_STRINGS = {"n/a", "na", "null", "none", "-"}
 date_format = "%d-%b-%y"
 from openpyxl import load_workbook
-path = r"C:\Users\HP\Downloads\testinh\FLYER_LIST  - 14 - 20 JAN - 26.xlsx"
+path = r"C:\Users\HP\Downloads\testinh\1 page ok.xlsx"
 # path = "TestFlareExcel.xlsx"
 all_sheets = pd.read_excel(path, sheet_name=None) 
-# all_sheets = {"TEST": all_sheets["TEST"]}
+all_sheets = {"Sheet1": all_sheets["Sheet1"]}  # For testing, only use "Sheet1"
 wb = load_workbook(path, data_only=True)
 file_info = {"id": 222}
 messages = []
-INVALID_STRINGS = {"n/a", "na", "null", "none", "-"}
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
+def send_message(status, messages, progress=0):
+    # print(f"{status.upper()}: {messages} (Progress: {progress}%)")
+    return
+print("here")
+notifications_count = 0
+all_sheets_list = list(all_sheets.items())
+total_sheets = len(all_sheets_list)
+for s_idx, (sheet_name, df) in enumerate(all_sheets_list):
 
-for sheet_name, df in all_sheets.items():
-    
+    sheet_base_prg = (s_idx / total_sheets) * 100
+    sheet_end_prg = ((s_idx + 1) / total_sheets) * 100
+    send_message("success", f"Starting {sheet_name} sheet" , progress=int(sheet_base_prg))
     if df.empty:
-        messages.append({
-            "type": "warning",
-            "message": f"Sheet '{sheet_name}' is empty",
-            "id": file_info.get("id")
-        })
-        continue
+        send_message("error", f"Sheet '{sheet_name}' is empty", int(sheet_base_prg + 2))
+        notifications_count +=1 
+        hasErrors = True
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
-        messages.append({
-            "type": "error",
-            "message": f"Sheet '{sheet_name}': Missing required columns: {', '.join(missing_columns)}",
-            "id": file_info.get("id")
-        })
+        send_message( "error", f"Sheet '{sheet_name}': Missing required columns: {', '.join(missing_columns)}",int(sheet_base_prg + 4)  )
+        notifications_count +=1 
+        hasErrors = True
 
-    # 1. Detect Row Types first
     def is_empty_row(row):
         return row.isna().all() or (row.astype(str).str.strip() == "").all()
     
@@ -60,9 +63,6 @@ for sheet_name, df in all_sheets.items():
         last_is_not_empty = pd.notna(last_item)
         
         return prefix_is_empty and last_is_not_empty
-
-    # 2. Create masks for the whole dataframe
-    # This checks if a cell is NaN, empty string, or an INVALID_STRING
     invalid_mask = df.copy()
     for col in df.columns:
         invalid_mask[col] = (
@@ -72,8 +72,22 @@ for sheet_name, df in all_sheets.items():
         )
 
     previous_row_empty = False
+    total_rows = len(df)
+    last_sent_progress = -1
+    STEP = 19
+
     for i, row in df.iterrows():
+        row_progress = int(
+            sheet_base_prg + ((i / total_rows) * (sheet_end_prg - sheet_base_prg))
+        )
+
+        if row_progress >= last_sent_progress + STEP:
+            last_sent_progress = row_progress
+            send_message("success", "", progress=row_progress)
+     
         excel_row = i + 2 
+
+
         if is_empty_row(row):
             previous_row_empty = True
             print(f"row > {excel_row} empty row")
@@ -83,30 +97,21 @@ for sheet_name, df in all_sheets.items():
             print(f"row > {excel_row} last item only")
 
             if previous_row_empty:
-                messages.append({
-                    "type": "error",
-                    "message": (
-                        f"Sheet '{sheet_name}': "
-                        f"Empty row found in {excel_row-1} "
-                    ),
-                    "id": file_info.get("id")
-                })
-
+                notifications_count +=1 
             previous_row_empty = False
+            print(f"row > {excel_row} last item only - skipped")
             continue
 
-        # reset if normal row
         previous_row_empty = False
-            
+        
         for col in REQUIRED_VALUE_COLUMNS:
+            
             if col not in df.columns:
                 break
 
             ws = wb[sheet_name]
             excel_row = i + 2
             resolved_value = row[col]
-
-            
 
             if invalid_mask.at[i, col]:
 
@@ -127,9 +132,8 @@ for sheet_name, df in all_sheets.items():
 
                 
 
-          
+        
                 if is_merged and resolved_value is not None:
-                    
                     if col in DATE_COLUMNS:
                         try:
                             if pd.isna(resolved_value):
@@ -149,28 +153,28 @@ for sheet_name, df in all_sheets.items():
                             continue  # ✅ valid date
 
                         except Exception as e: 
-                            
-                            messages.append({
-                                "type": "error",
-                                "message": (
-                                    f"Sheet '{sheet_name}': Invalid date in column {e}"
-                                    f"'{col}', row {excel_row}: {resolved_value}"
-                                ),
-                                "id": file_info.get("id")
-                            })
+                            send_message( "error", f"Sheet '{sheet_name}': Invalid date in column {e}" f"'{col}', row {excel_row}: {resolved_value}", progress=row_progress+6)        
+                            notifications_count +=1    
+                            hasErrors =True
                             continue
-
-
 
                     continue  # merged + has value = valid
                 else:
-                    messages.append({
-                        "type": "error",
-                        "message": (
-                            f"Sheet '{sheet_name}': Row {excel_row}, "
-                            f"Col '{col}' is missing or invalid"
-                        ),
-                        "id": file_info.get("id")
-                    })
-print(messages)
+                    send_message( "error", f"Sheet '{sheet_name}': Row {excel_row}, "f"Col '{col}' is missing or invalid",progress=row_progress+10)
+                    hasErrors = True
+                    notifications_count +=1     
+
+            
+send_message("success", "File fully validated", 98)
+send_message("apiUpdate", "Validation completed .", progress=98)
+
+if not hasErrors:
+    send_message("success", "Uploading To table", 99)
+    send_message("apiUpdate", "Uploadin to table", progress=99)
+    
+else:
+
+    send_message("success", "File fully validated.", 100)
+
+    send_message("apiUpdate", "Validation completed", progress=100)
 

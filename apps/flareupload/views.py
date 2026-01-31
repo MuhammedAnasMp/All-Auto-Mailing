@@ -13,7 +13,7 @@ import os
 import uuid
 from django.conf import settings
 from django.http import JsonResponse
-from apps.flareupload.tasks import verify_excel_file
+from apps.flareupload.tasks import verify_excel_file ,process_uploaded_file
 
 REQUIRED_COLUMNS = ["ARTICLE_CODE", "SU", "UNIQ_CODE", "UNIQ_NAME", "FROM_DATE", "TO_DATE",
                     "FLYER_RSP", "REG_RSP", "UNIT_DN", "REMARKS", "FLYER_TYPE", "CREATED_BY", "APPLICABLE_LOCATIONS"]
@@ -139,3 +139,29 @@ def stop_task(request, task_id):
         return JsonResponse({'status': 'Task closed'}, status=200)
     r.set(f"stop_{task_id}", "true", ex=3600)
     return JsonResponse({'status': 'Stop signal sent to Redis'})
+
+
+from django.core.cache import cache
+import uuid
+
+@api_view(['POST'])
+def finalize_upload(request):
+    files = request.FILES.getlist('files')
+    task_ids = request.POST.getlist('task_ids')
+
+    for uploaded_file, task_id in zip(files, task_ids):
+        # 🔹 uploaded_file is InMemoryUploadedFile
+        file_bytes = uploaded_file.read()
+
+        cache_key = f"excel:{uuid.uuid4()}"
+
+        # Store in Redis (RAM)
+        cache.set(cache_key, file_bytes, timeout=60 * 60)
+
+        process_uploaded_file.delay(
+            cache_key=cache_key,
+            filename=uploaded_file.name,
+            task_id=task_id
+        )
+
+    return Response({"status": "queued"})
