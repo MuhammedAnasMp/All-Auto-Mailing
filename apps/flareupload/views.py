@@ -150,7 +150,9 @@ def finalize_upload(request):
     files = request.FILES.getlist('files')
     task_ids = request.POST.getlist('task_ids')
     sectionKeys = request.POST.getlist('sectionKeys')
-    print(task_ids)
+    user_id = request.POST.getlist('user_id')[0]
+    print(user_id)
+
 
     for uploaded_file, task_id ,sectionKey in zip(files, task_ids ,sectionKeys):
         print(sectionKey)
@@ -166,8 +168,51 @@ def finalize_upload(request):
             cache_key=cache_key,
             filename=uploaded_file.name,
             task_id=task_id,
-            user_id=12345,
+            user_id=user_id,
             sectionKey =sectionKey
         )
 
     return Response({"status": "queued"})
+
+
+
+
+
+
+
+
+
+def get_all_progress(request):
+    """
+    API endpoint to fetch cached progress updates.
+    """
+    cache_key = "final-notification"
+    progress_data = cache.get(cache_key, [])  # default to empty list if not set
+    return JsonResponse({"progress": progress_data})
+
+
+
+
+
+
+@api_view(['POST'])
+def delete_task_progress(request):
+    """
+    API endpoint to delete cached progress for a given task/cache key.
+    Expects JSON: {"cache_key": "final-notification"}
+    """
+    import json
+    try:
+        body = json.loads(request.body)
+        cache_key = body.get("cache_key")
+        if not cache_key:
+            return JsonResponse({"error": "cache_key is required"}, status=400)
+
+        deleted = cache.delete(cache_key)
+        if deleted:
+            return JsonResponse({"message": f"Cache '{cache_key}' deleted successfully."})
+        else:
+            return JsonResponse({"message": f"Cache '{cache_key}' not found."}, status=404)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

@@ -44,7 +44,7 @@ class FinalNotificationConsumer(AsyncWebsocketConsumer):
 
     async def notification_update(self, event):
         await self.send(text_data=json.dumps({
-            "payload_type": "notification.update",
+            "payload_type": "notification.final",
             "id": event["id"],
             "task_id": event["task_id"],
             "filename": event["filename"],

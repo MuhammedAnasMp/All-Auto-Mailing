@@ -256,6 +256,7 @@ def verify_excel_file(self, cache_key, file_info, file_name, user_id):
                     r.delete(f"stop_{self.request.id}")  # Cleanup
                     send_message(
                         "error", "process stoped Automatically because of 500 + errors  ", 100)
+                    send_message("apiUpdate", "Validation Stopped", progress=100)
                     return "process stoped Automatically because of 500 + errors "
 
                 if r.get(f"stop_{self.request.id}"):
@@ -356,7 +357,6 @@ def verify_excel_file(self, cache_key, file_info, file_name, user_id):
 
 @shared_task(bind=True, queue='heavy_queue1',    base=AbortableTask, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={'max_retries': 3})
 def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=None ,user_id=None , sectionKey=None):
-    print("Processing:", file_id, filename, task_id)
 
     # 🔑 Load from cache
     file_bytes = cache.get(cache_key)
@@ -364,13 +364,71 @@ def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=
     all_sections = cache.get(sectionKey)
 
     all_sheets_list = list(all_sheets.items())
-
+    progress_counter = 0
     START_ROW = 2
     all_rows_to_upload = []
+    total_rows = sum(len(df) for _, df in all_sheets_list)
+    processed_rows = 0
+    cache_key=f"final-notification"
+    max_records=50
+
+    def print_progress(state, message, progress, counter):
+        """
+        Update progress details and store in cache with a maximum number of records.
+        Old records are removed when the limit is reached.
+        If progress is 100%, keep only the final record.
+        """
+        # Create the progress record
+        progress_record = {
+            "file_id": file_id,
+            "filename": filename,
+            "task_id": task_id,
+            "state": state,
+            "message": message,
+            "progress": f"{progress:.0f}",
+            "cache_key":cache_key
+        }
+
+        if progress >= 100:
+            # If complete, keep only this final record
+            cached_data = [progress_record]
+        else:
+            # Retrieve existing cache data (if any)
+            cached_data = cache.get(cache_key, [])
+
+            # Append the new progress record
+            cached_data.append(progress_record)
+
+            # Keep only the last `max_records` entries
+            if len(cached_data) > max_records:
+                # Separate records by task_id
+                same_task = [r for r in cached_data if r["task_id"] == task_id]
+                other_tasks = [r for r in cached_data if r["task_id"] != task_id]
+
+                # Trim only the current task's records
+                if len(same_task) > max_records:
+                    same_task = same_task[-max_records:]
+
+                # Recombine
+                cached_data = other_tasks + same_task
+
+        # Store updated data back to cache (expires in 1 hour)
+        cache.set(cache_key, cached_data, timeout=60 * 10)
+        print(max_records)
+        # Increment counter
+        counter += 1
+        return counter
     for sheet_name, df in all_sheets_list:
 
         END_ROW = len(df) + 1  
-
+         # Sheet started
+        progress = (processed_rows / total_rows) * 100
+        progress_counter = print_progress(
+            state="INFO",
+            message=f"Sheet '{sheet_name}' started",
+            progress=progress,
+            counter=progress_counter
+        )
         breaks = next(
             (s["removable_rows"] for s in all_sections if s["sheetname"] == sheet_name),
             []
@@ -394,6 +452,13 @@ def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=
             sections.append((current_start, END_ROW))
 
         for start, end in sections:
+            progress = (processed_rows / total_rows) * 100
+            progress_counter = print_progress(
+                state="INFO",
+                message=f"Sheet '{sheet_name}': Section start {start} → {end}",
+                progress=progress,
+                counter=progress_counter
+            )
             cutted = df.iloc[start-2:end-1].copy()  # make a copy to safely modify
 
             locations = cutted["APPLICABLE_LOCATIONS"].dropna().astype(
@@ -406,16 +471,40 @@ def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=
             filtered_cutted = cutted[mask]
             for col in COLS_TO_FILL:
                 filtered_cutted[col] = filtered_cutted[col].ffill()
-
+          
             for index, row in filtered_cutted.iterrows():
                 for location in locations:
                     row_to_upload = row.copy()
                     row_to_upload["APPLICABLE_LOCATIONS"] = location
-                    row_to_upload["CREATED_BY"] = "PERSON1"
+                    row_to_upload["UPLOADED_BY"] = user_id
                     row_to_upload["SHEET"] = sheet_name
                     all_rows_to_upload.append(row_to_upload)
                     
+                # Section finished
+                processed_rows += 1
+                progress = (processed_rows / total_rows) * 100
+                progress_counter = print_progress(
+                    state="SUCCESS",
+                    message=f"Sheet '{sheet_name}', row {index} processed",
+                    progress=progress,
+                    counter=progress_counter
+                )
 
+            # Section finished
+            progress = (processed_rows / total_rows) * 100
+            progress_counter = print_progress(
+                state="INFO",
+                message=f"Sheet '{sheet_name}': Section end {start} → {end}",
+                progress=progress,
+                counter=progress_counter
+            )
+        progress = (processed_rows / total_rows) * 100
+        progress_counter = print_progress(
+            state="INFO",
+            message=f"Sheet '{sheet_name}' finished",
+            progress=progress,
+            counter=progress_counter
+        )
 
 
        
@@ -431,21 +520,48 @@ def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=
         ({', '.join(columns)})
         VALUES ({placeholders})
         """
-        
+        db_total = len(all_rows_to_upload)
+        db_processed = 0
+
+
         try:
-            for row in all_rows_to_upload:
+            for i, row in enumerate(all_rows_to_upload, start=1):
                 values = [clean_value(row[col]) for col in columns]
-                print("Values:", values)
                 cursor.execute(sql, values)
+                db_processed += 1
+
+                progress = (db_processed / db_total) * 100
+                progress_counter = print_progress(
+                    state="SUCCESS",
+                    message=f"Inserting row {db_processed} into DB . total {db_total} rows .  current sheet {row["SHEET"]}",
+                    progress=progress,
+                    counter=progress_counter
+                )
+
             conn.commit()
-            print("All rows inserted successfully!")
+            progress_counter = print_progress(
+                state="SUCCESS",
+                message="All rows inserted into DB",
+                progress=100,
+                counter=progress_counter
+            )
+
         except Exception as e:
             conn.rollback()
             print("Error inserting rows:", e)
+
         finally:
             cursor.close()
             conn.close()
 
+    
+    
+    progress_counter = print_progress(
+        state="SUCCESS",
+        message=f"Task completed for file '{filename}' (This message will be removed after one hour)",
+        progress=100,
+        counter=progress_counter
+    )
 
     return {
         "rows": "f",
