@@ -190,7 +190,7 @@ CELERY_CACHE_BACKEND = "default"
 CELERY_TASK_QUEUES = (
     Queue("fast_queue"),
     Queue("heavy_queue"),
-    Queue("heavy_queue1"),
+    # Queue("heavy_queue1"),
 )
 
 CELERY_TASK_DEFAULT_QUEUE = "fast_queue"  # default

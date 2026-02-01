@@ -69,7 +69,7 @@ def connection():
 
 
 
-@shared_task(bind=True, queue='heavy_queue1', base=AbortableTask)
+@shared_task(bind=True, queue='heavy_queue', base=AbortableTask)
 def verify_excel_file(self, cache_key, file_info, file_name, user_id):
     task_id = self.request.id
     clean_user_id = str(user_id).replace(" ", "_")
@@ -355,7 +355,7 @@ def verify_excel_file(self, cache_key, file_info, file_name, user_id):
     return {"status": "Completed", "file": file_name}
 
 
-@shared_task(bind=True, queue='heavy_queue1',    base=AbortableTask, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={'max_retries': 3})
+@shared_task(bind=True, queue='heavy_queue',    base=AbortableTask, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={'max_retries': 3})
 def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=None ,user_id=None , sectionKey=None):
 
     # 🔑 Load from cache
