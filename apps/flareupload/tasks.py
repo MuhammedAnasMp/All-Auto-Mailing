@@ -389,28 +389,34 @@ def process_uploaded_file(self, cache_key, file_id=None, filename=None, task_id=
             "cache_key":cache_key
         }
 
-        if progress >= 100:
-            # If complete, keep only this final record
-            cached_data = [progress_record]
-        else:
-            # Retrieve existing cache data (if any)
-            cached_data = cache.get(cache_key, [])
+        cached_data = cache.get(cache_key, [])
 
+        if progress >= 100:
+            # Remove all records of the same task_id
+            cached_data = [
+                r for r in cached_data
+                if r["task_id"] != task_id
+            ]
+
+            # Add only the final completed record for this task
+            cached_data.append(progress_record)
+
+        else:
             # Append the new progress record
             cached_data.append(progress_record)
 
-            # Keep only the last `max_records` entries
-            if len(cached_data) > max_records:
-                # Separate records by task_id
-                same_task = [r for r in cached_data if r["task_id"] == task_id]
-                other_tasks = [r for r in cached_data if r["task_id"] != task_id]
+            # Keep only the last `max_records` entries for this task
+            same_task = [r for r in cached_data if r["task_id"] == task_id]
+            other_tasks = [r for r in cached_data if r["task_id"] != task_id]
 
-                # Trim only the current task's records
-                if len(same_task) > max_records:
-                    same_task = same_task[-max_records:]
+            if len(same_task) > max_records:
+                same_task = same_task[-max_records:]
 
-                # Recombine
-                cached_data = other_tasks + same_task
+            cached_data = other_tasks + same_task
+
+        # Save back to cache
+        cache.set(cache_key, cached_data)
+
 
         # Store updated data back to cache (expires in 1 hour)
         cache.set(cache_key, cached_data, timeout=60 * 10)
