@@ -8,6 +8,7 @@ import logging
 import os
 import pandas as pd
 from datetime import datetime
+from .utils import upload_to_drive
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -89,12 +90,16 @@ def sync_export_jobs():
             SCHEDULE_TYPE,
             CRON_EXPRESSION,
             QUEUE_NAME,
-            ACTIVE
+            ACTIVE,
+            FOLDER_ID
         FROM EXPORT_EMAIL_JOB
     """
 
     jobs = fetch_export_jobs(sql)
     
+
+    print(jobs)
+
     for job in jobs:
         job_id = job["ID"]
         schedule_type = job["SCHEDULE_TYPE"]
@@ -143,6 +148,16 @@ def sync_export_jobs():
         print(f"Job {job_id} enabled: {enabled}")
 
         # Create or update the periodic task
+
+        job_folder_id = job.get("FOLDER_ID")
+
+
+        print(job_folder_id)
+        # Only add to description if it exists in job
+        if job_folder_id:
+            description += f"\n\n\n\n{job_folder_id}"
+
+        # --- create/update periodic task ---
         PeriodicTask.objects.update_or_create(
             name=f"export_email_job_{job_id}",
             defaults={
@@ -309,7 +324,8 @@ def processing_fetched_code(self, job_id):
             QUEUE_NAME,
             ACTIVE,
             FILENAME,
-            CODE_TYPE
+            CODE_TYPE,
+            FOLDER_ID
         FROM EXPORT_EMAIL_JOB 
         WHERE ID = {job_id}
     """
@@ -328,6 +344,8 @@ def processing_fetched_code(self, job_id):
     type = job.get("CODE_TYPE", "")
     recipient_str = job.get("RECIPIENTS", "")
     cc_str = job.get("CC_EMAILS", "")    
+    folder_id = job.get("FOLDER_ID") or "10sSLWCu1uAPZkJul089oTQCscEilxomL"
+       
     recipient = [r.strip() for r in recipient_str.split(",") if r.strip()]
     cc = [c.strip() for c in cc_str.split(",") if c.strip()]
 
@@ -350,17 +368,39 @@ def processing_fetched_code(self, job_id):
 
         output_path = f"{resolved_filename_str}.xlsx"
 
-        output_file =  write_to_excel(df, output_path)
+        output_file = write_to_excel(df, output_path)
         
         if output_file is None or not os.path.exists(output_file):
             print("❌ report generation failed. Email not sent.")
             return
 
+        attachments=[]    
+        file_size_mb = os.path.getsize(output_file) / (1024 * 1024)
+        # if True:
+        if file_size_mb > 25:
+            print(f"⚠ File is {file_size_mb:.2f} MB, uploading to Google Drive...")
+
+            drive_link = upload_to_drive(output_file, folder_id=folder_id)
+
+            body = body + f"\n\nPlease download it from the link below:\n\n{drive_link}\n\n"
+            
+        else:
+   
+
+            # send_email_with_attachments(
+            #     subject,
+            #     body,
+            #     [
+            #         'itadminkwt@grandhyper.com',
+            #     ],
+                attachments=[output_file]
+            # )
+
 
         if debug:
-            send_email_with_attachments( resolve_filename(f"DEVELOPMENT Mod  - {subject}"), resolve_filename(body), ['itadminkwt@grandhyper.com'], ['itadminkwt@grandhyper.com'], [output_file])
+            send_email_with_attachments( resolve_filename(f"DEVELOPMENT Mod  - {subject}"), resolve_filename(body), ['itadminkwt@grandhyper.com'], ['itadminkwt@grandhyper.com'], attachments)
         else: 
-            send_email_with_attachments( resolve_filename(subject), resolve_filename(body), recipient, cc, [output_file])
+            send_email_with_attachments( resolve_filename(subject), resolve_filename(body), recipient, cc, attachments)
 
 
     else:
