@@ -1,0 +1,24 @@
+nssm stop myflaskapp
+nssm start myflaskapp
+nssm remove myflaskapp
+
+nssm restart myflaskapp
+
+
+
+
+nssm edit myflaskapp
+
+
+
+
+netstat -ano  show all running services 
+
+
+Display all nssm tasks 
+
+# Get-WmiObject Win32_Service |
+    Where-Object { $_.PathName -match "nssm\.exe" } |
+    Select-Object Name, DisplayName, PathName
+
+DaphneService
